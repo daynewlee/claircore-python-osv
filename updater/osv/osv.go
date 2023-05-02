@@ -443,6 +443,7 @@ type ecs struct {
 
 const (
 	ecosystemMaven = `Maven`
+	ecosystemPyPI  = `PyPI`
 )
 
 func newECS(u string) ecs {
@@ -542,7 +543,7 @@ func (e *ecs) Insert(ctx context.Context, name string, a *advisory) (err error) 
 					}
 				case `ECOSYSTEM`:
 					switch af.Package.Ecosystem {
-					case ecosystemMaven:
+					case ecosystemMaven, ecosystemPyPI:
 						switch {
 						case ev.Introduced == "0":
 						case ev.Introduced != "":
@@ -568,8 +569,11 @@ func (e *ecs) Insert(ctx context.Context, name string, a *advisory) (err error) 
 					zlog.Warn(ctx).Err(err).Msg("event version error")
 				}
 			}
-			if len(ranges) > 0 && af.Package.Ecosystem == ecosystemMaven {
-				v.FixedInVersion = ranges.Encode()
+			if len(ranges) > 0 {
+				switch af.Package.Ecosystem {
+				case ecosystemMaven, ecosystemPyPI:
+					v.FixedInVersion = ranges.Encode()
+				}
 			}
 
 			if r := v.Range; r != nil {
@@ -594,12 +598,13 @@ func (e *ecs) Insert(ctx context.Context, name string, a *advisory) (err error) 
 				vs = b.String()
 			}
 			pkgName := af.Package.PURL
-			if af.Package.Ecosystem == ecosystemMaven {
+			if af.Package.Ecosystem == ecosystemMaven || af.Package.Ecosystem == ecosystemPyPI {
 				pkgName = af.Package.Name
 			}
 			pkg, novel := e.LookupPackage(pkgName, vs)
 			v.Package = pkg
-			if af.Package.Ecosystem == ecosystemMaven {
+			switch af.Package.Ecosystem {
+			case ecosystemMaven, ecosystemPyPI:
 				v.Package.Kind = claircore.BINARY
 			}
 			if novel {
