@@ -11,6 +11,7 @@ import (
 
 	"github.com/quay/zlog"
 
+	manualUpdater "github.com/daynewlee/manual-updater"
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/datastore/postgres"
 	internalMatcher "github.com/quay/claircore/internal/matcher"
@@ -27,6 +28,75 @@ func TestMain(m *testing.M) {
 	defer func() { os.Exit(c) }()
 	defer integration.DBSetup()()
 	c = m.Run()
+}
+
+func TestOutOfTreeIntegration(t *testing.T) {
+	integration.NeedDB(t)
+	ctx := zlog.Test(context.Background(), t)
+	pool := pgtest.TestMatcherDB(ctx, t)
+	store := postgres.NewMatcherStore(pool)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	defer srv.Close()
+
+	m := &matcher{}
+	locks, err := ctxlock.New(ctx, pool)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer locks.Close(ctx)
+
+	cfg := map[string]driver.ConfigUnmarshaler{
+		"manual": func(v interface{}) error {
+			cfg := v.(*manualUpdater.Config)
+			cfg.URL = "www.google.com"
+			return nil
+		},
+	}
+
+	facs := map[string]driver.UpdaterSetFactory{
+		"manual": manualUpdater.Factory,
+	}
+
+	mgr, err := updates.NewManager(ctx, store, locks, srv.Client(),
+		updates.WithFactories(facs), updates.WithConfigs(cfg))
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// force update
+	if err := mgr.Run(ctx); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// force update
+	if err := mgr.Run(ctx); err != nil {
+		t.Fatalf("%v", err)
+	}
+	path := filepath.Join("testdata", "indexreport-buster-jackson-databind.json")
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer f.Close()
+	var ir claircore.IndexReport
+	err = json.NewDecoder(f).Decode(&ir)
+	if err != nil {
+		t.Fatalf("failed to decode IndexReport: %v", err)
+	}
+	vr, err := internalMatcher.Match(ctx, &ir, []driver.Matcher{m}, store)
+	if err != nil {
+		t.Fatalf("expected error to be nil but got %v", err)
+	}
+
+	vulns := vr.Vulnerabilities
+	t.Logf("Number of Vulnerabilities found: %d", len(vulns))
+
+	if len(vulns) < 1 {
+		t.Fatalf("failed to match vulns: %v", err)
+	}
 }
 
 func TestMatcherIntegration(t *testing.T) {
@@ -84,7 +154,7 @@ func TestMatcherIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected error to be nil but got %v", err)
 	}
-	
+
 	vulns := vr.Vulnerabilities
 	t.Logf("Number of Vulnerabilities found: %d", len(vulns))
 

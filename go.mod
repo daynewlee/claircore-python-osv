@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/Masterminds/semver v1.5.0
+	github.com/daynewlee/manual-updater v0.0.2
 	github.com/doug-martin/goqu/v8 v8.6.0
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.9
