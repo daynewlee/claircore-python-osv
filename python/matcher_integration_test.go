@@ -51,6 +51,7 @@ func TestMatcherIntegration(t *testing.T) {
 		"osv": func(v interface{}) error {
 			cfg := v.(*osv.Config)
 			cfg.URL = osv.DefaultURL
+			cfg.OutputPath = "tmp"
 			return nil
 		},
 	}

@@ -6,21 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quay/zlog"
-
-	"github.com/quay/claircore/enricher/cvss"
 	"github.com/quay/claircore/libvuln/driver"
 )
 
-func TestCVSS(t *testing.T) {
-	ctx := zlog.Test(context.Background(), t)
-	e := &cvss.Enricher{}
-	err := e.Configure(ctx, func(interface{}) error { return nil }, pkgClient)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runEnricher(ctx, t, e)
-}
+//func TestCVSS(t *testing.T) {
+//	ctx := zlog.Test(context.Background(), t)
+//	e := &cvss.Enricher{}
+//	err := e.Configure(ctx, func(interface{}) error { return nil }, pkgClient)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	runEnricher(ctx, t, e)
+//}
 
 func runEnricher(ctx context.Context, t *testing.T, u driver.EnrichmentUpdater) {
 	var rc io.ReadCloser

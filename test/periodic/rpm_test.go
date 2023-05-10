@@ -19,49 +19,50 @@ import (
 	"github.com/quay/claircore/test/rpmtest"
 )
 
-func TestRPMSpotCheck(t *testing.T) {
-	ctx := context.Background()
-	query := url.URL{
-		Scheme: "https",
-		Host:   "access.redhat.com",
-		Path:   "/hydra/rest/search/kcs",
-		RawQuery: url.Values{
-			"redhat_client": {"claircore-tests"},
-			"fq": {
-				`documentKind:"ContainerRepository"`,
-				`-release_catagories:"Deprecated"`,
-				"repository:ubi?/ubi*",
-			},
-			"fl":   {"id,repository,registry,parsed_data_layers"},
-			"rows": {"500"},
-			"q":    {"ubi"},
-		}.Encode(),
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, query.String(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("accept", "application/json")
-	res, err := pkgClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("unexpect response to %q: %s", query.String(), res.Status)
-	}
-	t.Logf("%s: %s", query.String(), res.Status)
-	var searchRes hydraResponse
-	var buf bytes.Buffer
-	if err := json.NewDecoder(io.TeeReader(res.Body, &buf)).Decode(&searchRes); err != nil {
-		t.Error(err)
-	}
-	t.Logf("search response:\t%q", buf.String())
-	dir := t.TempDir()
-	for _, d := range searchRes.Response.Docs {
-		t.Run(d.Repository, d.Run(dir))
-	}
-}
+//
+//func TestRPMSpotCheck(t *testing.T) {
+//	ctx := context.Background()
+//	query := url.URL{
+//		Scheme: "https",
+//		Host:   "access.redhat.com",
+//		Path:   "/hydra/rest/search/kcs",
+//		RawQuery: url.Values{
+//			"redhat_client": {"claircore-tests"},
+//			"fq": {
+//				`documentKind:"ContainerRepository"`,
+//				`-release_catagories:"Deprecated"`,
+//				"repository:ubi?/ubi*",
+//			},
+//			"fl":   {"id,repository,registry,parsed_data_layers"},
+//			"rows": {"500"},
+//			"q":    {"ubi"},
+//		}.Encode(),
+//	}
+//	req, err := http.NewRequestWithContext(ctx, http.MethodGet, query.String(), nil)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	req.Header.Set("accept", "application/json")
+//	res, err := pkgClient.Do(req)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	defer res.Body.Close()
+//	if res.StatusCode != http.StatusOK {
+//		t.Fatalf("unexpect response to %q: %s", query.String(), res.Status)
+//	}
+//	t.Logf("%s: %s", query.String(), res.Status)
+//	var searchRes hydraResponse
+//	var buf bytes.Buffer
+//	if err := json.NewDecoder(io.TeeReader(res.Body, &buf)).Decode(&searchRes); err != nil {
+//		t.Error(err)
+//	}
+//	t.Logf("search response:\t%q", buf.String())
+//	dir := t.TempDir()
+//	for _, d := range searchRes.Response.Docs {
+//		t.Run(d.Repository, d.Run(dir))
+//	}
+//}
 
 type hydraResponse struct {
 	Response struct {

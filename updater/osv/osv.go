@@ -66,6 +66,8 @@ type Config struct {
 	// (https://ossf.github.io/osv-schema/) or the "ecosystems.txt" file in the
 	// OSV data for the current list.
 	Allowlist []string `json:"allowlist" yaml:"allowlist"`
+	//OutputPath is the path used by the fetcher to generate and store temporary data dump.
+	OutputPath string
 }
 
 // DefaultURL is the S3 bucket provided by the OSV project.
@@ -211,8 +213,12 @@ func (u *updater) Fetch(ctx context.Context, fp driver.Fingerprint) (io.ReadClos
 	if err != nil {
 		return nil, fp, err
 	}
-
-	out, err := tmp.NewFile("", "osv.fetch.*")
+	var cfg Config
+	path := cfg.OutputPath
+	if (len(cfg.OutputPath) < 1) {
+		path = ""
+	}
+	out, err := tmp.NewFile(path, "osv.fetch.*")
 	if err != nil {
 		return nil, fp, err
 	}

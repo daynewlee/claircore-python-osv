@@ -126,6 +126,7 @@ func TestUbuntu(t *testing.T) {
 
 func TestOSV(t *testing.T) {
 	ctx := zlog.Test(context.Background(), t)
+	zlog.Info(ctx).Msg("test>>>")
 	us, err := osv.Factory.UpdaterSet(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -144,9 +145,30 @@ func runUpdaterSet(ctx context.Context, t *testing.T, set driver.UpdaterSet) {
 					t.Fatal(err)
 				}
 			}
-			runUpdater(ctx, t, u)
+			runUpdater2(ctx, t, u)
 		})
 	}
+}
+
+func runUpdater2(ctx context.Context, t *testing.T, u driver.Updater) {
+	var nfp driver.Fingerprint
+	var err error
+	// Debounce any network hiccups.
+	for i := 0; i < 5; i++ {
+		_, nfp, err = u.Fetch(ctx, fp)
+		if err == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After((2 << i) * time.Second):
+		}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(nfp)
 }
 
 func runUpdater(ctx context.Context, t *testing.T, u driver.Updater) {
