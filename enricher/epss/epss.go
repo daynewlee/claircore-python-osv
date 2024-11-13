@@ -1,9 +1,9 @@
 package epss
 
 import (
+	"bufio"
 	"compress/gzip"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -99,9 +99,8 @@ func (e *Enricher) Configure(ctx context.Context, f driver.ConfigUnmarshaler, c 
 	return nil
 }
 
-func (e *Enricher) FetchEnrichment(ctx context.Context, fingerprint driver.Fingerprint) (io.ReadCloser, driver.Fingerprint, error) {
+func (e *Enricher) FetchEnrichment(ctx context.Context, _ driver.Fingerprint) (io.ReadCloser, driver.Fingerprint, error) {
 	ctx = zlog.ContextWithValues(ctx, "component", "enricher/epss/Enricher/FetchEnrichment")
-	// Force a new hint, to signal updaters that this is new data.
 	newUUID := uuid.New()
 	hint := driver.Fingerprint(newUUID.String())
 	zlog.Info(ctx).Str("hint", string(hint)).Msg("starting fetch")
@@ -139,29 +138,42 @@ func (e *Enricher) FetchEnrichment(ctx context.Context, fingerprint driver.Finge
 	}
 	defer gzipReader.Close()
 
-	csvReader := csv.NewReader(gzipReader)
-	headers, err := csvReader.Read() // Column names
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to read CSV headers: %w", err)
-	}
-
+	scanner := bufio.NewScanner(gzipReader)
+	var headers []string
 	enc := json.NewEncoder(out)
 	totalCVEs := 0
 
-	for {
-		record, err := csvReader.Read()
-		if err == io.EOF {
-			break
+	// get headers
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue // Skip comment or empty lines
 		}
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to read CSV row: %w", err)
+		headers = strings.Split(line, ",")
+		break
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+
+		record := strings.Split(line, ",")
+		if len(record) != len(headers) {
+			zlog.Warn(ctx).Str("line", line).Msg("skipping line with mismatched fields")
+			continue // Skip lines with mismatched number of fields
 		}
 
 		item := make(map[string]string)
 		for i, value := range record {
 			item[headers[i]] = value
 		}
+
 		enrichment, err := json.Marshal(item)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to encode enrichment: %w", err)
+		}
 
 		r := driver.EnrichmentRecord{
 			Tags:       []string{item["cve"]},
@@ -169,9 +181,13 @@ func (e *Enricher) FetchEnrichment(ctx context.Context, fingerprint driver.Finge
 		}
 
 		if err = enc.Encode(&r); err != nil {
-			return nil, "", fmt.Errorf("encoding enrichment: %w", err)
+			return nil, "", fmt.Errorf("failed to write JSON line to file: %w", err)
 		}
 		totalCVEs++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, "", fmt.Errorf("error reading file: %w", err)
 	}
 
 	zlog.Info(ctx).Int("totalCVEs", totalCVEs).Msg("processed CVEs")
