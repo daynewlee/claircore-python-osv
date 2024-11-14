@@ -165,7 +165,10 @@ func (e *Enricher) FetchEnrichment(ctx context.Context, _ driver.Fingerprint) (i
 			continue // Skip lines with mismatched number of fields
 		}
 
-		r, err := newItemFeed(ctx, record, headers)
+		r, err := newItemFeed(record, headers)
+		if err != nil {
+			return nil, "", err
+		}
 
 		if err = enc.Encode(&r); err != nil {
 			return nil, "", fmt.Errorf("failed to write JSON line to file: %w", err)
@@ -282,7 +285,7 @@ func (e *Enricher) Enrich(ctx context.Context, g driver.EnrichmentGetter, r *cla
 	return Type, []json.RawMessage{b}, nil
 }
 
-func newItemFeed(ctx context.Context, record []string, headers []string) (driver.EnrichmentRecord, error) {
+func newItemFeed(record []string, headers []string) (driver.EnrichmentRecord, error) {
 	item := make(map[string]string)
 	for i, value := range record {
 		item[headers[i]] = value
