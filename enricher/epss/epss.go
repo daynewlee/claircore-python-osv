@@ -165,20 +165,7 @@ func (e *Enricher) FetchEnrichment(ctx context.Context, _ driver.Fingerprint) (i
 			continue // Skip lines with mismatched number of fields
 		}
 
-		item := make(map[string]string)
-		for i, value := range record {
-			item[headers[i]] = value
-		}
-
-		enrichment, err := json.Marshal(item)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to encode enrichment: %w", err)
-		}
-
-		r := driver.EnrichmentRecord{
-			Tags:       []string{item["cve"]},
-			Enrichment: enrichment,
-		}
+		r, err := newItemFeed(ctx, record, headers)
 
 		if err = enc.Encode(&r); err != nil {
 			return nil, "", fmt.Errorf("failed to write JSON line to file: %w", err)
@@ -293,4 +280,23 @@ func (e *Enricher) Enrich(ctx context.Context, g driver.EnrichmentGetter, r *cla
 		return Type, nil, err
 	}
 	return Type, []json.RawMessage{b}, nil
+}
+
+func newItemFeed(ctx context.Context, record []string, headers []string) (driver.EnrichmentRecord, error) {
+	item := make(map[string]string)
+	for i, value := range record {
+		item[headers[i]] = value
+	}
+
+	enrichment, err := json.Marshal(item)
+	if err != nil {
+		return driver.EnrichmentRecord{}, fmt.Errorf("failed to encode enrichment: %w", err)
+	}
+
+	r := driver.EnrichmentRecord{
+		Tags:       []string{item["cve"]},
+		Enrichment: enrichment,
+	}
+
+	return r, nil
 }
