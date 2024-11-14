@@ -215,3 +215,54 @@ func (tc fetchTestcase) Run(ctx context.Context, srv *httptest.Server) func(*tes
 		}
 	}
 }
+
+func TestParse(t *testing.T) {
+	t.Parallel()
+	ctx := zlog.Test(context.Background(), t)
+	srv := mockServer(t)
+	tt := []parseTestcase{
+		{
+			Name: "OK",
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.Name, tc.Run(ctx, srv))
+	}
+}
+
+type parseTestcase struct {
+	Check func(*testing.T, []driver.EnrichmentRecord, error)
+	Name  string
+}
+
+func (tc parseTestcase) Run(ctx context.Context, srv *httptest.Server) func(*testing.T) {
+	e := &Enricher{}
+	return func(t *testing.T) {
+		ctx := zlog.Test(ctx, t)
+		f := func(i interface{}) error {
+			cfg, ok := i.(*Config)
+			if !ok {
+				t.Fatal("assertion failed")
+			}
+			u := srv.URL + "/data.csv.gz"
+			cfg.FeedRoot = &u
+			return nil
+		}
+		if err := e.Configure(ctx, f, srv.Client()); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		rc, _, err := e.FetchEnrichment(ctx, "")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		defer rc.Close()
+		rs, err := e.ParseEnrichment(ctx, rc)
+		if tc.Check == nil {
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			return
+		}
+		tc.Check(t, rs, err)
+	}
+}
