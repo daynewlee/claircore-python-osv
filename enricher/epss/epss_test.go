@@ -3,7 +3,9 @@ package epss
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/zlog"
 	"io"
@@ -265,4 +267,27 @@ func (tc parseTestcase) Run(ctx context.Context, srv *httptest.Server) func(*tes
 		}
 		tc.Check(t, rs, err)
 	}
+}
+
+type fakeGetter struct {
+	items []map[string]string
+	res   []driver.EnrichmentRecord
+}
+
+func (f *fakeGetter) GetEnrichment(ctx context.Context, tags []string) ([]driver.EnrichmentRecord, error) {
+	id := tags[0]
+	for _, item := range f.items {
+		if value, ok := item["id"]; ok && value == id {
+			enrichment, err := json.Marshal(item)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode enrichment: %w", err)
+			}
+			r := driver.EnrichmentRecord{
+				Tags:       []string{item["cve"]},
+				Enrichment: enrichment,
+			}
+			f.res = []driver.EnrichmentRecord{r}
+		}
+	}
+	return f.res, nil
 }
