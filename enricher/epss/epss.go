@@ -143,19 +143,16 @@ func (e *Enricher) FetchEnrichment(ctx context.Context, _ driver.Fingerprint) (i
 	enc := json.NewEncoder(out)
 	totalCVEs := 0
 
-	// get headers
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+
 		if strings.HasPrefix(line, "#") || line == "" {
 			continue // Skip comment or empty lines
 		}
-		headers = strings.Split(line, ",")
-		break
-	}
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "#") || line == "" {
+		if headers == nil {
+			// Store headers on first data line
+			headers = strings.Split(line, ",")
 			continue
 		}
 

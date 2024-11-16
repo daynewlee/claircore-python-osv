@@ -3,17 +3,20 @@ package epss
 import (
 	"compress/gzip"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/zlog"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -290,4 +293,52 @@ func (f *fakeGetter) GetEnrichment(ctx context.Context, tags []string) ([]driver
 		}
 	}
 	return f.res, nil
+}
+
+func parseCSV(filePath string) ([]map[string]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.Comma = ',' // Set comma as the delimiter (can be customized)
+
+	var items []map[string]string
+	var headers []string // Declare headers outside the if block
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break // Reached end of file
+		}
+		if err != nil {
+			return nil, err // Handle other errors
+		}
+
+		if len(record) == 0 || strings.HasPrefix(record[0], "#") {
+			continue // Skip comment or empty lines
+		}
+
+		if items == nil {
+			// Store headers on first data line and initialize items slice
+			items = make([]map[string]string, 0)
+			headers = record
+			continue
+		}
+
+		if len(record) != len(headers) {
+			log.Printf("warning: skipping line with mismatched fields: %s\n", record)
+			continue // Skip lines with mismatched number of fields
+		}
+
+		item := make(map[string]string)
+		for i, value := range record {
+			item[headers[i]] = value // Use headers as map keys
+		}
+		items = append(items, item)
+	}
+
+	return items, nil
 }
